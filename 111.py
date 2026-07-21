@@ -109,8 +109,27 @@ else:
         )
         commute_time = st.slider("单程通勤时长 (分钟)", min_value=5, max_value=120, value=30, step=5)
         
-    crowd_level = st.slider("通勤过程中的拥挤/路况压力感知", min_value=1, max_value=5, value=3, 
-                            help="1分：一路畅通/有座，非常舒适；5分：极度拥堵/挤成沙丁鱼，非常烦躁")
+        # --- 替换部分：通勤压力感知单选按钮 ---
+    st.write("") # 增加一点间距
+    st.markdown("""
+        <p style="margin-bottom: 5px; font-weight: bold; font-size: 16px;">
+            🚦 通勤过程中的拥挤/路况压力感知 (单选)
+        </p>
+        <p style="margin-bottom: 15px; font-size: 14px; color: #566573;">
+            💡 评分标准：<strong>1分</strong>（非常通畅/有座位，非常舒适） ↔️ <strong>5分</strong>（非常拥堵/无座位，非常烦躁）
+        </p>
+    """, unsafe_allow_html=True)
+    
+    # 5个并排的圆圈，点击哪个哪个亮
+    crowd_level = st.radio(
+        label="请选择您的压力感知分数：", # 这里的 label 会作为无障碍标签，我们用上面的 markdown 来做更好看的视觉展示
+        options=[1, 2, 3, 4, 5],
+        index=2, # 默认选中 3 分
+        horizontal=True,
+        label_visibility="collapsed" # 隐藏原生 label，使用我们上面自定义的精美 HTML 提示
+    )
+    st.write("") # 增加一点间距
+
     
     sleep_hours = st.slider("昨晚睡眠时长 (小时)", min_value=4.0, max_value=10.0, value=7.0, step=0.5,
                             help="睡眠是重要的心理缓冲因子")
