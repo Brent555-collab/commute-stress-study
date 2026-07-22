@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 import matplotlib.pyplot as plt
+import numpy as np
 from datetime import datetime
 
 # ==========================================
@@ -28,7 +29,7 @@ def init_db():
 init_db()
 
 # ==========================================
-# 2. 核心数据分析函数 (科研通道专用 - 纯英文图表)
+# 2. 核心数据分析函数 (科研通道专用 - 纯英文双图看板)
 # ==========================================
 def show_admin_trend_analysis():
     st.markdown("### 📊 实验室实时科研数据看板")
@@ -43,10 +44,7 @@ def show_admin_trend_analysis():
         # 展示最近 5 条数据
         st.dataframe(df.tail(5), use_container_width=True)
         
-        # 简单可视化：不同通勤方式的平均压力 (完全英文版，防止乱码)
-        st.markdown("#### 🔍 Average Morning Stress by Commute Type")
-        try:
-                    # 简单可视化：双图联动科研分析面板 (完全英文版，防止乱码)
+        # 简单可视化：双图联动科研分析面板 (完全英文版，防止乱码)
         st.markdown("#### 🔍 Multi-Dimensional Scientific Analysis")
         try:
             # 1. 数据准备与英文映射
@@ -68,12 +66,11 @@ def show_admin_trend_analysis():
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
             
             # --- 【左图】散点趋势图：通勤时间与压力的相关性 ---
-            # 绘制散点
             ax1.scatter(plot_df["commute_time"], plot_df["stress_score"], color='#2980B9', alpha=0.7, edgecolors='none', s=80)
             
             # 尝试绘制趋势线（线性拟合）
+            m = 0 # 默认斜率
             if len(plot_df) >= 2:
-                import numpy as np
                 m, b = np.polyfit(plot_df["commute_time"].astype(float), plot_df["stress_score"].astype(float), 1)
                 ax1.plot(plot_df["commute_time"], m*plot_df["commute_time"] + b, color='#E74C3C', linestyle='--', linewidth=2, label=f'Trend (slope: {m:.2f})')
                 ax1.legend()
@@ -85,21 +82,20 @@ def show_admin_trend_analysis():
             ax1.grid(True, linestyle=':', alpha=0.6)
             
             # --- 【右图】双柱对比图：不同通勤方式的[拥挤度]与[压力值] ---
-            # 计算各组平均值
             grouped = plot_df.groupby("commute_type_en")[["crowd_level", "stress_score"]].mean().reset_index()
             
             # 柱状图排版参数
-            x = np.arange(len(grouped))
+            x_indices = np.arange(len(grouped))
             width = 0.35
             
-            # 绘制双柱（将拥挤度等比放大或单独展示，这里将拥挤度1-5映射到右轴，或直接对比）
-            rects1 = ax2.bar(x - width/2, grouped["crowd_level"], width, label='Avg Crowdedness (1-5)', color='#F39C12')
-            rects2 = ax2.bar(x + width/2, grouped["stress_score"] / 3, width, label='Normalized Stress (Score/3)', color='#27AE60') # 压力除以3以便在同一维度对比
+            # 绘制双柱（压力除以3以便在同一维度对比）
+            ax2.bar(x_indices - width/2, grouped["crowd_level"], width, label='Avg Crowdedness (1-5)', color='#F39C12')
+            ax2.bar(x_indices + width/2, grouped["stress_score"] / 3, width, label='Normalized Stress (Score/3)', color='#27AE60')
             
             ax2.set_title("Impact: Crowdedness vs. Normalized Stress", fontsize=11, fontweight='bold', pad=10)
             ax2.set_xlabel("Commute Type", fontsize=9)
             ax2.set_ylabel("Level / Normalized Score", fontsize=9)
-            ax2.set_xticks(x)
+            ax2.set_xticks(x_indices)
             ax2.set_xticklabels(grouped["commute_type_en"], rotation=15, ha='right', fontsize=8)
             ax2.set_ylim(0, 6)
             ax2.legend()
@@ -125,9 +121,6 @@ def show_admin_trend_analysis():
                 else:
                     st.write("⚠️ **Crowd Factor**: Crowdedness levels are currently stable across all commute types.")
                     
-        except Exception as e:
-            st.error(f"Chart rendering failed: {e}")
-
         except Exception as e:
             st.error(f"Chart rendering failed: {e}")
     else:
@@ -177,7 +170,7 @@ else:
         )
         commute_time = st.slider("单程通勤时长 (分钟)", min_value=5, max_value=120, value=30, step=5)
         
-    # --- 替换部分：通勤压力感知单选按钮 ---
+    # --- 通勤压力感知单选按钮 ---
     st.write("") 
     st.markdown("""
         <p style="margin-bottom: 5px; font-weight: bold; font-size: 16px;">
