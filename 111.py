@@ -28,10 +28,22 @@ def init_db():
 init_db()
 
 # ==========================================
-# 2. 核心数据分析函数 (科研通道专用)
+# 2. 核心数据分析函数 (科研通道专用 - 纯英文图表)
 # ==========================================
 def show_admin_trend_analysis():
-            # 简单可视化：不同通勤方式的平均压力 (完全英文版，防止乱码)
+    st.markdown("### 📊 实验室实时科研数据看板")
+    if os.path.exists(DB_FILE):
+        df = pd.read_csv(DB_FILE)
+        if len(df) == 0:
+            st.info("目前后台暂无样本数据，快去提交几份测试数据吧！")
+            return
+        
+        st.write(f"📊 **当前已收集有效样本数**：{len(df)} 份")
+        
+        # 展示最近 5 条数据
+        st.dataframe(df.tail(5), use_container_width=True)
+        
+        # 简单可视化：不同通勤方式的平均压力 (完全英文版，防止乱码)
         st.markdown("#### 🔍 Average Morning Stress by Commute Type")
         try:
             # 复制一份数据进行英文映射，防止修改原始数据
@@ -53,7 +65,7 @@ def show_admin_trend_analysis():
             # 绘制柱状图
             fig, ax = plt.subplots(figsize=(8, 4))
             
-            # 移除之前可能导致冲突的中文设置，使用标准 Arial 字体
+            # 移除可能导致冲突的中文设置，使用标准 Arial 字体
             plt.rcParams['font.sans-serif'] = ['Arial', 'sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
             
@@ -73,7 +85,6 @@ def show_admin_trend_analysis():
             st.pyplot(fig)
         except Exception as e:
             st.error(f"Chart rendering failed: {e}")
-
     else:
         st.error("未找到数据库文件。")
 
@@ -121,8 +132,8 @@ else:
         )
         commute_time = st.slider("单程通勤时长 (分钟)", min_value=5, max_value=120, value=30, step=5)
         
-        # --- 替换部分：通勤压力感知单选按钮 ---
-    st.write("") # 增加一点间距
+    # --- 替换部分：通勤压力感知单选按钮 ---
+    st.write("") 
     st.markdown("""
         <p style="margin-bottom: 5px; font-weight: bold; font-size: 16px;">
             🚦 通勤过程中的拥挤/路况压力感知 (单选)
@@ -132,26 +143,23 @@ else:
         </p>
     """, unsafe_allow_html=True)
     
-    # 5个并排的圆圈，点击哪个哪个亮
     crowd_level = st.radio(
-        label="请选择您的压力感知分数：", # 这里的 label 会作为无障碍标签，我们用上面的 markdown 来做更好看的视觉展示
+        label="请选择您的压力感知分数：",
         options=[1, 2, 3, 4, 5],
-        index=2, # 默认选中 3 分
+        index=2,
         horizontal=True,
-        label_visibility="collapsed" # 隐藏原生 label，使用我们上面自定义的精美 HTML 提示
+        label_visibility="collapsed"
     )
-    st.write("") # 增加一点间距
-
+    st.write("") 
     
     sleep_hours = st.slider("昨晚睡眠时长 (小时)", min_value=4.0, max_value=10.0, value=7.0, step=0.5,
                             help="睡眠是重要的心理缓冲因子")
 
     st.markdown("---")
 
-       # --- 第二板块：K10 晨间即时压力自评 ---
+    # --- 第二板块：K10 晨间即时压力自评 ---
     st.subheader("2. 当前心理状态自评 (K10 简版)")
     
-    # 统一的评分标准指导语卡片
     st.markdown("""
         <div style="background-color: #F8F9F9; border-left: 4px solid #5D6D7E; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
             <p style="margin: 0 0 8px 0; font-weight: bold; color: #2C3E50; font-size: 15px;">
@@ -167,17 +175,16 @@ else:
         </div>
     """, unsafe_allow_html=True)
     
-    # 干净的三个自评问题
     st.markdown("<p style='font-weight: bold; margin-bottom: 5px;'>1. 您现在感到紧张或焦虑吗？</p>", unsafe_allow_html=True)
     stress_q1 = st.radio(
         label="q1",
         options=[1, 2, 3, 4, 5],
-        index=2, # 默认选 3
+        index=2,
         horizontal=True,
-        label_visibility="collapsed" # 隐藏原生标签，保持界面绝对纯净
+        label_visibility="collapsed"
     )
     
-    st.write("") # 留白
+    st.write("") 
     
     st.markdown("<p style='font-weight: bold; margin-bottom: 5px;'>2. 您现在感到疲惫、没有活力吗？</p>", unsafe_allow_html=True)
     stress_q2 = st.radio(
@@ -188,7 +195,7 @@ else:
         label_visibility="collapsed"
     )
     
-    st.write("") # 留白
+    st.write("") 
     
     st.markdown("<p style='font-weight: bold; margin-bottom: 5px;'>3. 您现在感到烦躁、难以平静吗？</p>", unsafe_allow_html=True)
     stress_q3 = st.radio(
@@ -199,23 +206,14 @@ else:
         label_visibility="collapsed"
     )
     
-    # 计算总分 (3 - 15 分)
-    total_stress_score = stress_q1 + stress_q2 + stress_q3
-
-    
-    # 计算总分 (3 - 15 分)
     total_stress_score = stress_q1 + stress_q2 + stress_q3
 
     # --- 第三板块：动态能量天平反馈 ---
     st.markdown("---")
     st.subheader("⚖️ 您的晨间心理能量天平")
     
-    # 简单的天平逻辑计算
-    # 压力源 = 通勤时间权重 + 拥挤度权重
     stress_load = (commute_time / 10) + (crowd_level * 2)
-    # 缓冲器 = 睡眠时间权重 + 主动通勤加成
     buffer_power = (sleep_hours * 1.5) + (3 if "步行/骑行" in commute_type else 0)
-    
     balance_diff = stress_load - buffer_power
     
     if balance_diff > 3:
@@ -230,7 +228,6 @@ else:
 
     # --- 提交数据 ---
     if st.button("提交评估并记录数据 (Submit)", use_container_width=True):
-        # 保存数据到 CSV
         df = pd.read_csv(DB_FILE)
         new_data = pd.DataFrame([{
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -251,7 +248,6 @@ else:
     # ==========================================
     st.markdown("---")
     
-    # 注入精准的科技蓝按钮与仅限验证框的 CSS
     st.markdown("""
         <style>
         div:has(#blue-btn-marker) + div button {
