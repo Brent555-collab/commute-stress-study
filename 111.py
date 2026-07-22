@@ -136,16 +136,60 @@ else:
 
     st.markdown("---")
 
-    # --- 第二板块：K10 晨间即时压力自评 ---
+       # --- 第二板块：K10 晨间即时压力自评 ---
     st.subheader("2. 当前心理状态自评 (K10 简版)")
-    st.write("请评估您**此时此刻（刚刚抵达工位）**的真实感受：")
     
-    stress_q1 = st.radio("1. 您现在感到紧张或焦虑吗？", [1, 2, 3, 4, 5], horizontal=True, 
-                         format_func=lambda x: f"{x}分 (极轻 -> 极重)")
-    stress_q2 = st.radio("2. 您现在感到疲惫、没有活力吗？", [1, 2, 3, 4, 5], horizontal=True,
-                         format_func=lambda x: f"{x}分 (极轻 -> 极重)")
-    stress_q3 = st.radio("3. 您现在感到烦躁、难以平静吗？", [1, 2, 3, 4, 5], horizontal=True,
-                         format_func=lambda x: f"{x}分 (极轻 -> 极重)")
+    # 统一的评分标准指导语卡片
+    st.markdown("""
+        <div style="background-color: #F8F9F9; border-left: 4px solid #5D6D7E; padding: 15px; border-radius: 4px; margin-bottom: 20px;">
+            <p style="margin: 0 0 8px 0; font-weight: bold; color: #2C3E50; font-size: 15px;">
+                📝 评分标准说明（请根据此时此刻抵达工位后的真实感受选择）：
+            </p>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; color: #566573; max-width: 500px;">
+                <span><strong>1分</strong>：极轻 / 完全没有</span>
+                <span><strong>2分</strong>：轻度</span>
+                <span><strong>3分</strong>：中度</span>
+                <span><strong>4分</strong>：重度</span>
+                <span><strong>5分</strong>：极重 / 非常强烈</span>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+    
+    # 干净的三个自评问题
+    st.markdown("<p style='font-weight: bold; margin-bottom: 5px;'>1. 您现在感到紧张或焦虑吗？</p>", unsafe_allow_html=True)
+    stress_q1 = st.radio(
+        label="q1",
+        options=[1, 2, 3, 4, 5],
+        index=2, # 默认选 3
+        horizontal=True,
+        label_visibility="collapsed" # 隐藏原生标签，保持界面绝对纯净
+    )
+    
+    st.write("") # 留白
+    
+    st.markdown("<p style='font-weight: bold; margin-bottom: 5px;'>2. 您现在感到疲惫、没有活力吗？</p>", unsafe_allow_html=True)
+    stress_q2 = st.radio(
+        label="q2",
+        options=[1, 2, 3, 4, 5],
+        index=2,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    st.write("") # 留白
+    
+    st.markdown("<p style='font-weight: bold; margin-bottom: 5px;'>3. 您现在感到烦躁、难以平静吗？</p>", unsafe_allow_html=True)
+    stress_q3 = st.radio(
+        label="q3",
+        options=[1, 2, 3, 4, 5],
+        index=2,
+        horizontal=True,
+        label_visibility="collapsed"
+    )
+    
+    # 计算总分 (3 - 15 分)
+    total_stress_score = stress_q1 + stress_q2 + stress_q3
+
     
     # 计算总分 (3 - 15 分)
     total_stress_score = stress_q1 + stress_q2 + stress_q3
