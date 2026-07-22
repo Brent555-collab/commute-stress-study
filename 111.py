@@ -31,37 +31,49 @@ init_db()
 # 2. 核心数据分析函数 (科研通道专用)
 # ==========================================
 def show_admin_trend_analysis():
-    st.markdown("### 📊 实验室实时科研数据看板")
-    if os.path.exists(DB_FILE):
-        df = pd.read_csv(DB_FILE)
-        if len(df) == 0:
-            st.info("目前后台暂无样本数据，快去提交几份测试数据吧！")
-            return
-        
-        st.write(f"📊 **当前已收集有效样本数**：{len(df)} 份")
-        
-        # 展示最近 5 条数据
-        st.dataframe(df.tail(5), use_container_width=True)
-        
-        # 简单可视化：不同通勤方式的平均压力
-        st.markdown("#### 🔍 不同通勤方式的平均压力分布")
+            # 简单可视化：不同通勤方式的平均压力 (完全英文版，防止乱码)
+        st.markdown("#### 🔍 Average Morning Stress by Commute Type")
         try:
-            avg_stress = df.groupby("commute_type")["stress_score"].mean().reset_index()
+            # 复制一份数据进行英文映射，防止修改原始数据
+            plot_df = df.copy()
+            
+            # 将中文通勤方式映射为纯英文，确保图表横坐标不乱码
+            type_mapping = {
+                "步行/骑行 (主动通勤)": "Active (Walk/Bike)",
+                "地铁 (Subway)": "Subway",
+                "公交 (Bus)": "Bus",
+                "自驾 (Driving)": "Driving",
+                "打车/拼车 (Ride-hailing)": "Ride-hailing"
+            }
+            plot_df["commute_type_en"] = plot_df["commute_type"].map(type_mapping).fillna(plot_df["commute_type"])
+            
+            # 重新计算平均值
+            avg_stress = plot_df.groupby("commute_type_en")["stress_score"].mean().reset_index()
             
             # 绘制柱状图
             fig, ax = plt.subplots(figsize=(8, 4))
-            # 支持中文显示
-            plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS']
+            
+            # 移除之前可能导致冲突的中文设置，使用标准 Arial 字体
+            plt.rcParams['font.sans-serif'] = ['Arial', 'sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
             
             colors = ['#2980B9', '#27AE60', '#E74C3C', '#F39C12', '#9B59B6']
-            ax.bar(avg_stress["commute_type"], avg_stress["stress_score"], color=colors[:len(avg_stress)])
-            ax.set_ylabel("平均晨间压力值 (3-15分)")
-            ax.set_xlabel("通勤方式")
+            ax.bar(avg_stress["commute_type_en"], avg_stress["stress_score"], color=colors[:len(avg_stress)])
+            
+            # 设置英文标签
+            ax.set_ylabel("Avg Morning Stress Score (3-15)", fontsize=10)
+            ax.set_xlabel("Commute Type", fontsize=10)
+            ax.set_title("Morning Stress Level by Commute Type", fontsize=12, fontweight='bold', pad=15)
             ax.set_ylim(0, 15)
+            
+            # 优化横坐标文字排版，防止重叠
+            plt.xticks(rotation=15, ha='right')
+            plt.tight_layout()
+            
             st.pyplot(fig)
         except Exception as e:
-            st.error(f"图表渲染失败: {e}")
+            st.error(f"Chart rendering failed: {e}")
+
     else:
         st.error("未找到数据库文件。")
 
