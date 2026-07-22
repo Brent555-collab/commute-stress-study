@@ -46,10 +46,11 @@ def show_admin_trend_analysis():
         # 简单可视化：不同通勤方式的平均压力 (完全英文版，防止乱码)
         st.markdown("#### 🔍 Average Morning Stress by Commute Type")
         try:
-            # 复制一份数据进行英文映射，防止修改原始数据
+                    # 简单可视化：双图联动科研分析面板 (完全英文版，防止乱码)
+        st.markdown("#### 🔍 Multi-Dimensional Scientific Analysis")
+        try:
+            # 1. 数据准备与英文映射
             plot_df = df.copy()
-            
-            # 将中文通勤方式映射为纯英文，确保图表横坐标不乱码
             type_mapping = {
                 "步行/骑行 (主动通勤)": "Active (Walk/Bike)",
                 "地铁 (Subway)": "Subway",
@@ -59,30 +60,74 @@ def show_admin_trend_analysis():
             }
             plot_df["commute_type_en"] = plot_df["commute_type"].map(type_mapping).fillna(plot_df["commute_type"])
             
-            # 重新计算平均值
-            avg_stress = plot_df.groupby("commute_type_en")["stress_score"].mean().reset_index()
-            
-            # 绘制柱状图
-            fig, ax = plt.subplots(figsize=(8, 4))
-            
-            # 移除可能导致冲突的中文设置，使用标准 Arial 字体
+            # 统一设置 Arial 字体，防止乱码
             plt.rcParams['font.sans-serif'] = ['Arial', 'sans-serif']
             plt.rcParams['axes.unicode_minus'] = False
             
-            colors = ['#2980B9', '#27AE60', '#E74C3C', '#F39C12', '#9B59B6']
-            ax.bar(avg_stress["commute_type_en"], avg_stress["stress_score"], color=colors[:len(avg_stress)])
+            # 2. 创建 1行2列 的画布
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
             
-            # 设置英文标签
-            ax.set_ylabel("Avg Morning Stress Score (3-15)", fontsize=10)
-            ax.set_xlabel("Commute Type", fontsize=10)
-            ax.set_title("Morning Stress Level by Commute Type", fontsize=12, fontweight='bold', pad=15)
-            ax.set_ylim(0, 15)
+            # --- 【左图】散点趋势图：通勤时间与压力的相关性 ---
+            # 绘制散点
+            ax1.scatter(plot_df["commute_time"], plot_df["stress_score"], color='#2980B9', alpha=0.7, edgecolors='none', s=80)
             
-            # 优化横坐标文字排版，防止重叠
-            plt.xticks(rotation=15, ha='right')
+            # 尝试绘制趋势线（线性拟合）
+            if len(plot_df) >= 2:
+                import numpy as np
+                m, b = np.polyfit(plot_df["commute_time"].astype(float), plot_df["stress_score"].astype(float), 1)
+                ax1.plot(plot_df["commute_time"], m*plot_df["commute_time"] + b, color='#E74C3C', linestyle='--', linewidth=2, label=f'Trend (slope: {m:.2f})')
+                ax1.legend()
+                
+            ax1.set_title("Correlation: Commute Time vs. Stress", fontsize=11, fontweight='bold', pad=10)
+            ax1.set_xlabel("Commute Duration (Minutes)", fontsize=9)
+            ax1.set_ylabel("Morning Stress Score (3-15)", fontsize=9)
+            ax1.set_ylim(2, 16)
+            ax1.grid(True, linestyle=':', alpha=0.6)
+            
+            # --- 【右图】双柱对比图：不同通勤方式的[拥挤度]与[压力值] ---
+            # 计算各组平均值
+            grouped = plot_df.groupby("commute_type_en")[["crowd_level", "stress_score"]].mean().reset_index()
+            
+            # 柱状图排版参数
+            x = np.arange(len(grouped))
+            width = 0.35
+            
+            # 绘制双柱（将拥挤度等比放大或单独展示，这里将拥挤度1-5映射到右轴，或直接对比）
+            rects1 = ax2.bar(x - width/2, grouped["crowd_level"], width, label='Avg Crowdedness (1-5)', color='#F39C12')
+            rects2 = ax2.bar(x + width/2, grouped["stress_score"] / 3, width, label='Normalized Stress (Score/3)', color='#27AE60') # 压力除以3以便在同一维度对比
+            
+            ax2.set_title("Impact: Crowdedness vs. Normalized Stress", fontsize=11, fontweight='bold', pad=10)
+            ax2.set_xlabel("Commute Type", fontsize=9)
+            ax2.set_ylabel("Level / Normalized Score", fontsize=9)
+            ax2.set_xticks(x)
+            ax2.set_xticklabels(grouped["commute_type_en"], rotation=15, ha='right', fontsize=8)
+            ax2.set_ylim(0, 6)
+            ax2.legend()
+            ax2.grid(True, linestyle=':', alpha=0.6)
+            
+            # 调整布局并渲染
             plt.tight_layout()
-            
             st.pyplot(fig)
+            
+            # 3. 补充学术结论输出（动态文字分析）
+            st.markdown("#### 💡 Key Research Insights:")
+            col_left, col_right = st.columns(2)
+            with col_left:
+                if len(plot_df) >= 2 and m > 0:
+                    st.write(f"📈 **Time Factor**: Commute duration is **positively correlated** with morning stress. Every additional 10 minutes of commuting increases stress by approximately **{m*10:.2f}** points.")
+                else:
+                    st.write("📈 **Time Factor**: Awaiting more data points to calculate the exact correlation coefficient.")
+            with col_right:
+                high_crowd = grouped[grouped["crowd_level"] >= 3.5]
+                if not high_crowd.empty:
+                    types = ", ".join(high_crowd["commute_type_en"].tolist())
+                    st.write(f"⚠️ **Crowd Factor**: High crowdedness (>=3.5) detected in **{types}**. Crowded environments significantly drain morning psychological energy.")
+                else:
+                    st.write("⚠️ **Crowd Factor**: Crowdedness levels are currently stable across all commute types.")
+                    
+        except Exception as e:
+            st.error(f"Chart rendering failed: {e}")
+
         except Exception as e:
             st.error(f"Chart rendering failed: {e}")
     else:
