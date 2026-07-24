@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
-import os
 import matplotlib.pyplot as plt
 import numpy as np
 from datetime import datetime
+from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
 # 1. 页面基本配置与初始化
@@ -16,25 +16,26 @@ if "confirmed" not in st.session_state:
 if "show_admin_portal" not in st.session_state:
     st.session_state.show_admin_portal = False
 
-# 初始化 CSV 数据库
-DB_FILE = "commute_history.csv"
-def init_db():
-    if not os.path.exists(DB_FILE):
-        df = pd.DataFrame(columns=[
-            "timestamp", "gender", "age", "commute_type", 
-            "commute_time", "crowd_level", "sleep_hours", "stress_score"
-        ])
-        df.to_csv(DB_FILE, index=False)
-
-init_db()
+# 初始化 Google Sheets 连接
+# 注意：这会自动读取你在 Streamlit Secrets 中配置的 [connections.gsheets]
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except Exception as e:
+    st.error(f"⚠️ Google Sheets 连接初始化失败，请检查 Secrets 配置。错误信息: {e}")
 
 # ==========================================
 # 2. 核心数据分析函数 (科研通道专用 - 纯英文双图看板)
 # ==========================================
 def show_admin_trend_analysis():
     st.markdown("### 📊 实验室实时科研数据看板")
-    if os.path.exists(DB_FILE):
-        df = pd.read_csv(DB_FILE)
+    try:
+        # 从 Google Sheets 实时读取最新数据
+        # ttl=0 表示不使用缓存，每次都获取最新提交的数据
+        df = conn.read(ttl=0)
+        
+        # 过滤掉空行（防止读取到表格下方的空白行）
+        df = df.dropna(subset=["timestamp"])
+        
         if len(df) == 0:
             st.info("目前后台暂无样本数据，快去提交几份测试数据吧！")
             return
@@ -44,87 +45,99 @@ def show_admin_trend_analysis():
         # 展示最近 5 条数据
         st.dataframe(df.tail(5), use_container_width=True)
         
+        # 提供一键下载 CSV 按钮，方便你导入 SPSS 或 R 语言
+        csv_data = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 下载完整数据集 (Download CSV)",
+            data=csv_data,
+            file_name=f"commute_study_data_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True
+        )
+        
         # 简单可视化：双图联动科研分析面板 (完全英文版，防止乱码)
         st.markdown("#### 🔍 Multi-Dimensional Scientific Analysis")
-        try:
-            # 1. 数据准备与英文映射
-            plot_df = df.copy()
-            type_mapping = {
-                "步行/骑行 (主动通勤)": "Active (Walk/Bike)",
-                "地铁 (Subway)": "Subway",
-                "公交 (Bus)": "Bus",
-                "自驾 (Driving)": "Driving",
-                "打车/拼车 (Ride-hailing)": "Ride-hailing"
-            }
-            plot_df["commute_type_en"] = plot_df["commute_type"].map(type_mapping).fillna(plot_df["commute_type"])
+        
+        # 1. 数据准备与英文映射
+        plot_df = df.copy()
+        type_mapping = {
+            "步行/骑行 (主动通勤)": "Active (Walk/Bike)",
+            "地铁 (Subway)": "Subway",
+            "公交 (Bus)": "Bus",
+            "自驾 (Driving)": "Driving",
+            "打车/拼车 (Ride-hailing)": "Ride-hailing"
+        }
+        plot_df["commute_type_en"] = plot_df["commute_type"].map(type_mapping).fillna(plot_df["commute_type"])
+        
+        # 统一设置 Arial 字体，防止乱码
+        plt.rcParams['font.sans-serif'] = ['Arial', 'sans-serif']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        # 2. 创建 1行2列 的画布
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+        
+        # --- 【左图】散点趋势图：通勤时间与压力的相关性 ---
+        ax1.scatter(plot_df["commute_time"].astype(float), plot_df["stress_score"].astype(float), color='#2980B9', alpha=0.7, edgecolors='none', s=80)
+        
+        # 尝试绘制趋势线（线性拟合）
+        m = 0 # 默认斜率
+        if len(plot_df) >= 2:
+            m, b = np.polyfit(plot_df["commute_time"].astype(float), plot_df["stress_score"].astype(float), 1)
+            ax1.plot(plot_df["commute_time"], m*plot_df["commute_time"] + b, color='#E74C3C', linestyle='--', linewidth=2, label=f'Trend (slope: {m:.2f})')
+            ax1.legend()
             
-            # 统一设置 Arial 字体，防止乱码
-            plt.rcParams['font.sans-serif'] = ['Arial', 'sans-serif']
-            plt.rcParams['axes.unicode_minus'] = False
-            
-            # 2. 创建 1行2列 的画布
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-            
-            # --- 【左图】散点趋势图：通勤时间与压力的相关性 ---
-            ax1.scatter(plot_df["commute_time"], plot_df["stress_score"], color='#2980B9', alpha=0.7, edgecolors='none', s=80)
-            
-            # 尝试绘制趋势线（线性拟合）
-            m = 0 # 默认斜率
-            if len(plot_df) >= 2:
-                m, b = np.polyfit(plot_df["commute_time"].astype(float), plot_df["stress_score"].astype(float), 1)
-                ax1.plot(plot_df["commute_time"], m*plot_df["commute_time"] + b, color='#E74C3C', linestyle='--', linewidth=2, label=f'Trend (slope: {m:.2f})')
-                ax1.legend()
+        ax1.set_title("Correlation: Commute Time vs. Stress", fontsize=11, fontweight='bold', pad=10)
+        ax1.set_xlabel("Commute Duration (Minutes)", fontsize=9)
+        ax1.set_ylabel("Morning Stress Score (3-15)", fontsize=9)
+        ax1.set_ylim(2, 16)
+        ax1.grid(True, linestyle=':', alpha=0.6)
+        
+        # --- 【右图】双柱对比图：不同通勤方式的[拥挤度]与[压力值] ---
+        # 确保数据类型正确
+        plot_df["crowd_level"] = plot_df["crowd_level"].astype(float)
+        plot_df["stress_score"] = plot_df["stress_score"].astype(float)
+        
+        grouped = plot_df.groupby("commute_type_en")[["crowd_level", "stress_score"]].mean().reset_index()
+        
+        # 柱状图排版参数
+        x_indices = np.arange(len(grouped))
+        width = 0.35
+        
+        # 绘制双柱（压力除以3以便在同一维度对比）
+        ax2.bar(x_indices - width/2, grouped["crowd_level"], width, label='Avg Crowdedness (1-5)', color='#F39C12')
+        ax2.bar(x_indices + width/2, grouped["stress_score"] / 3, width, label='Normalized Stress (Score/3)', color='#27AE60')
+        
+        ax2.set_title("Impact: Crowdedness vs. Normalized Stress", fontsize=11, fontweight='bold', pad=10)
+        ax2.set_xlabel("Commute Type", fontsize=9)
+        ax2.set_ylabel("Level / Normalized Score", fontsize=9)
+        ax2.set_xticks(x_indices)
+        ax2.set_xticklabels(grouped["commute_type_en"], rotation=15, ha='right', fontsize=8)
+        ax2.set_ylim(0, 6)
+        ax2.legend()
+        ax2.grid(True, linestyle=':', alpha=0.6)
+        
+        # 调整布局并渲染
+        plt.tight_layout()
+        st.pyplot(fig)
+        
+        # 3. 补充学术结论输出（动态文字分析）
+        st.markdown("#### 💡 Key Research Insights:")
+        col_left, col_right = st.columns(2)
+        with col_left:
+            if len(plot_df) >= 2 and m > 0:
+                st.write(f"📈 **Time Factor**: Commute duration is **positively correlated** with morning stress. Every additional 10 minutes of commuting increases stress by approximately **{m*10:.2f}** points.")
+            else:
+                st.write("📈 **Time Factor**: Awaiting more data points to calculate the exact correlation coefficient.")
+        with col_right:
+            high_crowd = grouped[grouped["crowd_level"] >= 3.5]
+            if not high_crowd.empty:
+                types = ", ".join(high_crowd["commute_type_en"].tolist())
+                st.write(f"⚠️ **Crowd Factor**: High crowdedness (>=3.5) detected in **{types}**. Crowded environments significantly drain morning psychological energy.")
+            else:
+                st.write("⚠️ **Crowd Factor**: Crowdedness levels are currently stable across all commute types.")
                 
-            ax1.set_title("Correlation: Commute Time vs. Stress", fontsize=11, fontweight='bold', pad=10)
-            ax1.set_xlabel("Commute Duration (Minutes)", fontsize=9)
-            ax1.set_ylabel("Morning Stress Score (3-15)", fontsize=9)
-            ax1.set_ylim(2, 16)
-            ax1.grid(True, linestyle=':', alpha=0.6)
-            
-            # --- 【右图】双柱对比图：不同通勤方式的[拥挤度]与[压力值] ---
-            grouped = plot_df.groupby("commute_type_en")[["crowd_level", "stress_score"]].mean().reset_index()
-            
-            # 柱状图排版参数
-            x_indices = np.arange(len(grouped))
-            width = 0.35
-            
-            # 绘制双柱（压力除以3以便在同一维度对比）
-            ax2.bar(x_indices - width/2, grouped["crowd_level"], width, label='Avg Crowdedness (1-5)', color='#F39C12')
-            ax2.bar(x_indices + width/2, grouped["stress_score"] / 3, width, label='Normalized Stress (Score/3)', color='#27AE60')
-            
-            ax2.set_title("Impact: Crowdedness vs. Normalized Stress", fontsize=11, fontweight='bold', pad=10)
-            ax2.set_xlabel("Commute Type", fontsize=9)
-            ax2.set_ylabel("Level / Normalized Score", fontsize=9)
-            ax2.set_xticks(x_indices)
-            ax2.set_xticklabels(grouped["commute_type_en"], rotation=15, ha='right', fontsize=8)
-            ax2.set_ylim(0, 6)
-            ax2.legend()
-            ax2.grid(True, linestyle=':', alpha=0.6)
-            
-            # 调整布局并渲染
-            plt.tight_layout()
-            st.pyplot(fig)
-            
-            # 3. 补充学术结论输出（动态文字分析）
-            st.markdown("#### 💡 Key Research Insights:")
-            col_left, col_right = st.columns(2)
-            with col_left:
-                if len(plot_df) >= 2 and m > 0:
-                    st.write(f"📈 **Time Factor**: Commute duration is **positively correlated** with morning stress. Every additional 10 minutes of commuting increases stress by approximately **{m*10:.2f}** points.")
-                else:
-                    st.write("📈 **Time Factor**: Awaiting more data points to calculate the exact correlation coefficient.")
-            with col_right:
-                high_crowd = grouped[grouped["crowd_level"] >= 3.5]
-                if not high_crowd.empty:
-                    types = ", ".join(high_crowd["commute_type_en"].tolist())
-                    st.write(f"⚠️ **Crowd Factor**: High crowdedness (>=3.5) detected in **{types}**. Crowded environments significantly drain morning psychological energy.")
-                else:
-                    st.write("⚠️ **Crowd Factor**: Crowdedness levels are currently stable across all commute types.")
-                    
-        except Exception as e:
-            st.error(f"Chart rendering failed: {e}")
-    else:
-        st.error("未找到数据库文件。")
+    except Exception as e:
+        st.error(f"数据加载或图表渲染失败: {e}")
 
 # ==========================================
 # 3. 路由渲染逻辑
@@ -264,22 +277,33 @@ else:
         st.info(f"⚖️ **天平基本保持平衡** (波动值: {balance_diff:.1f})")
         st.write("诊断建议：您的心理能量处于平稳状态。保持节奏，开启高效的一天吧！")
 
-    # --- 提交数据 ---
+    # --- 提交数据 (实时写入 Google Sheets) ---
     if st.button("提交评估并记录数据 (Submit)", use_container_width=True):
-        df = pd.read_csv(DB_FILE)
-        new_data = pd.DataFrame([{
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "gender": gender,
-            "age": age,
-            "commute_type": commute_type,
-            "commute_time": commute_time,
-            "crowd_level": crowd_level,
-            "sleep_hours": sleep_hours,
-            "stress_score": total_stress_score
-        }])
-        new_data.to_csv(DB_FILE, mode='a', header=False, index=False)
-        st.balloons()
-        st.success("数据提交成功！感谢您为城市打工人心理健康研究做出的贡献。")
+        try:
+            # 1. 读取现有数据
+            existing_df = conn.read(ttl=0)
+            existing_df = existing_df.dropna(subset=["timestamp"])
+            
+            # 2. 构造新行
+            new_row = pd.DataFrame([{
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "gender": gender,
+                "age": int(age),
+                "commute_type": commute_type,
+                "commute_time": int(commute_time),
+                "crowd_level": int(crowd_level),
+                "sleep_hours": float(sleep_hours),
+                "stress_score": int(total_stress_score)
+            }])
+            
+            # 3. 合并并更新到 Google Sheets
+            updated_df = pd.concat([existing_df, new_row], ignore_index=True)
+            conn.update(data=updated_df)
+            
+            st.balloons()
+            st.success("🎉 数据已安全同步至云端 Google Sheets！感谢您的参与。")
+        except Exception as e:
+            st.error(f"❌ 数据提交失败，请联系管理员。错误: {e}")
 
     # ==========================================
     # 🔐 4. 管理员后台密码验证与渲染 (科技蓝一体化设计)
