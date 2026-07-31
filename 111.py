@@ -41,7 +41,9 @@ def show_admin_trend_analysis():
         st.write(f"📊 **当前已收集有效样本数**：{len(df)} 份")
         
         # 展示最近 5 条数据
-        st.dataframe(df.tail(5), use_container_width=True)
+        # 展示全部数据
+        st.dataframe(df, use_container_width=True)
+
         
         # 简单可视化：不同通勤方式的平均压力
         st.markdown("#### 🔍 不同通勤方式的平均压力分布")
